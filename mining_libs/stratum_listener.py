@@ -1,5 +1,6 @@
 import time
 import binascii
+import struct
 
 from twisted.internet import defer
 
@@ -88,22 +89,23 @@ class StratumProxyService(GenericService):
 
     @classmethod
     def _get_unused_tail(cls):
-        '''Currently adds only one byte to extranonce1,
-        limiting proxy for up to 255 connected clients.'''
+        '''Currently adds only one short to extranonce1,
+        limiting proxy for up to 65535 connected clients.'''
 
-        for _ in range(256): # 0-255
+        for _ in xrange(0x10000):
             cls.tail_iterator += 1
-            cls.tail_iterator %= 255
+            cls.tail_iterator %= 65536
 
             # Zero extranonce is reserved for getwork connections
             if cls.tail_iterator == 0:
                 cls.tail_iterator += 1
 
-            tail = binascii.hexlify(chr(cls.tail_iterator))
+            bintail = struct.pack(">H", cls.tail_iterator)
+            tail = binascii.hexlify(bintail)
 
             if tail not in cls.registered_tails:
                 cls.registered_tails.add(tail)
-                return (tail, cls.extranonce2_size-1)
+                return (tail, cls.extranonce2_size-len(bintail))
 
         raise Exception("Extranonce slots are full, please disconnect some miners!")
 
